@@ -1,21 +1,23 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { Trash2, UserPlus } from "lucide-react";
+import { Pencil, Trash2, UserPlus } from "lucide-react";
 import { deleteMember } from "@/actions/members";
-import type { MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, MemberDTO, TaskDTO } from "@/lib/types";
 import { useDialog } from "./dialog";
 import { MemberModal } from "./member-modal";
 import { buttonClass } from "./modal";
 import { TaskModal } from "./task-modal";
 
-/** Makes any task row clickable to open the edit modal. */
+/** Makes any task row clickable to open the task (editable for admins). */
 export function EditTaskTrigger({
+  viewer,
   task,
   members,
   children,
   className,
 }: {
+  viewer: CurrentUser;
   task: TaskDTO;
   members: MemberDTO[];
   children: ReactNode;
@@ -27,7 +29,7 @@ export function EditTaskTrigger({
       <button type="button" onClick={() => setOpen(true)} className={className}>
         {children}
       </button>
-      {open && <TaskModal task={task} members={members} onClose={() => setOpen(false)} />}
+      {open && <TaskModal viewer={viewer} task={task} members={members} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -40,6 +42,24 @@ export function AddMemberButton() {
         <UserPlus className="h-4 w-4" /> Add member
       </button>
       {open && <MemberModal onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+export function EditMemberButton({ member, isSelf }: { member: MemberDTO; isSelf: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+        aria-label={`Edit ${member.name}`}
+        title="Edit member, access and password"
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
+      {open && <MemberModal member={member} isSelf={isSelf} onClose={() => setOpen(false)} />}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { connection } from "next/server";
+import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { endOfWeekKey, toDayKey, todayKey } from "@/lib/dates";
 import type { DayContext, MemberDTO, TaskDTO } from "@/lib/types";
@@ -18,10 +19,21 @@ export async function getDayContext(): Promise<DayContext> {
 
 export async function getMembers(): Promise<MemberDTO[]> {
   await connection();
-  return prisma.member.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, email: true, role: true, avatarColor: true },
-  });
+  const [viewer, members] = await Promise.all([
+    getSessionUser(),
+    prisma.member.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true, role: true, avatarColor: true, access: true, passwordHash: true },
+    }),
+  ]);
+  const isAdmin = viewer?.access === "ADMIN";
+  // Never send the hash to the client; only whether one exists.
+  // Emails are only sent to admins (members still see their own).
+  return members.map(({ passwordHash, email, ...m }) => ({
+    ...m,
+    email: isAdmin || m.id === viewer?.id ? email : null,
+    hasLogin: passwordHash !== null,
+  }));
 }
 
 export async function getTasks(): Promise<TaskDTO[]> {
@@ -51,4 +63,10 @@ export async function getTasks(): Promise<TaskDTO[]> {
 export async function getDefaultProject() {
   await connection();
   return prisma.project.findFirst({ orderBy: { createdAt: "asc" } });
+}
+
+/** True until the first account with a password exists. */
+export async function needsSetup(): Promise<boolean> {
+  await connection();
+  return (await prisma.member.count({ where: { passwordHash: { not: null } } })) === 0;
 }

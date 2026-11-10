@@ -65,28 +65,46 @@ export async function compareSecret(a: string, b: string): Promise<boolean> {
   return timingSafeEqual(ha, hb);
 }
 
-/** Issues a signed session token that expires after SESSION_TTL_SECONDS. */
-export async function createSessionToken(): Promise<string> {
-  const payload = base64url(
-    encoder.encode(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS })),
-  );
+export type SessionPayload = {
+  /** Member id. */
+  sub: string;
+  /** Member.sessionVersion when the token was issued. */
+  ver: number;
+  exp: number;
+};
+
+/** Issues a signed session token for a member that expires after SESSION_TTL_SECONDS. */
+export async function createSessionToken(memberId: string, version: number): Promise<string> {
+  const data: SessionPayload = {
+    sub: memberId,
+    ver: version,
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+  };
+  const payload = base64url(encoder.encode(JSON.stringify(data)));
   const sig = base64url(await hmac(payload));
   return `${payload}.${sig}`;
 }
 
-/** Verifies signature and expiry. Returns false for any malformed/expired token. */
-export async function isValidSessionToken(token: string | undefined | null): Promise<boolean> {
-  if (!token) return false;
+/** Verifies signature and expiry. Returns null for any malformed/expired token. */
+export async function readSessionToken(token: string | undefined | null): Promise<SessionPayload | null> {
+  if (!token) return null;
   const dot = token.indexOf(".");
-  if (dot <= 0) return false;
+  if (dot <= 0) return null;
   const payload = token.slice(0, dot);
   const sig = token.slice(dot + 1);
   const expected = base64url(await hmac(payload));
-  if (!timingSafeEqual(sig, expected)) return false;
+  if (!timingSafeEqual(sig, expected)) return null;
   try {
     const data = JSON.parse(new TextDecoder().decode(fromBase64url(payload)));
-    return typeof data.exp === "number" && data.exp * 1000 > Date.now();
+    if (typeof data.sub !== "string" || typeof data.ver !== "number") return null;
+    if (typeof data.exp !== "number" || data.exp * 1000 <= Date.now()) return null;
+    return data as SessionPayload;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Cheap signature/expiry check for the proxy. Server code still loads the member. */
+export async function isValidSessionToken(token: string | undefined | null): Promise<boolean> {
+  return (await readSessionToken(token)) !== null;
 }

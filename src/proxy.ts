@@ -15,11 +15,8 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (authed && pathname === "/login") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
+  // Signed-in visitors on /login are redirected by the page itself, which can
+  // check the member still exists (a removed member's cookie is still signed).
 
   return NextResponse.next();
 }

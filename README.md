@@ -2,15 +2,30 @@
 
 A Jira-style tracker for team members, tasks and deadlines.
 
-Built with Next.js 16 (App Router, Cache Components), TypeScript, Tailwind CSS v4, Prisma 6 (PostgreSQL) and `@hello-pangea/dnd`. Access is gated by a single shared password (no external auth or cloud services).
+Built with Next.js 16 (App Router, Cache Components), TypeScript, Tailwind CSS v4, Prisma 6 (PostgreSQL) and `@hello-pangea/dnd`. Each team member signs in with their own email and password (no external auth or cloud services).
 
 ## Pages
 
+- `/my-tasks`: everything assigned to you, grouped by status, with a status picker on each task.
 - `/`: Kanban board (Backlog → Done) with drag and drop, and filters for search, assignee, priority and overdue.
 - `/deadlines`: open tasks grouped into Overdue, Due Today, Due This Week and Upcoming.
 - `/team`: each member's workload, with active, overdue and done counts.
 
-Click any task to edit or delete it.
+Click any task to open it.
+
+## Who can do what
+
+| | Admin | Member |
+| --- | --- | --- |
+| View board, deadlines, team | ✓ | ✓ |
+| Create, edit, assign and delete tasks | ✓ | |
+| Change the status of tasks assigned to them (drag on the board, or the status picker) | ✓ (any task) | ✓ (own tasks only) |
+| Add members, edit them, set access, reset passwords | ✓ | |
+| Change their own password | ✓ | ✓ |
+
+These rules are enforced in the server actions, not only hidden in the UI. Admins can't remove their own admin access or delete themselves, so there is always at least one admin.
+
+Resetting someone's password (or changing your own) signs out their other sessions. Members who forget their password ask an admin to reset it.
 
 ## Setup
 
@@ -28,7 +43,7 @@ npx prisma db seed          # sample project, 4 members, 8 tasks (WIPES existing
 npm run dev                 # http://localhost:3000 — you'll land on /login
 ```
 
-Sign in with the value of `AUTH_PASSWORD` from `.env`.
+**First run:** while no one has a password yet, `/login` shows a "Create admin account" form. Enter the value of `AUTH_PASSWORD` from `.env` as the setup key. If your email matches an existing member (e.g. a seeded one), that member becomes the admin. Then, on the Team page, use the pencil icon to give everyone else a password (members without one show a "No login" badge), or add new members with a starting password.
 
 ### Required environment variables
 
@@ -37,7 +52,7 @@ Sign in with the value of `AUTH_PASSWORD` from `.env`.
 | `DATABASE_URL` | Postgres connection string. |
 | `POSTGRES_PASSWORD` | Read by `docker-compose.yml`; must match the password in `DATABASE_URL`. |
 | `AUTH_SECRET` | Signs session cookies. 32+ bytes — `openssl rand -hex 32`. |
-| `AUTH_PASSWORD` | The shared sign-in password. |
+| `AUTH_PASSWORD` | Setup key for creating the first admin account. Not used after that. |
 
 > **Rotating the bundled DB password.** Postgres only applies `POSTGRES_PASSWORD`
 > when its data directory is first created. If you already started the old

@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { Board, BoardSkeleton } from "@/components/board/board";
 import { PageHeader } from "@/components/page-header";
+import { requireUser } from "@/lib/auth";
 import { getDayContext, getMembers, getTasks } from "@/lib/data";
 
 export default function BoardPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Board" description="Drag cards between columns to update their status." />
+      <PageHeader title="Board" description="Drag your cards between columns to update their status." />
       <Suspense fallback={<BoardSkeleton />}>
         <BoardData />
       </Suspense>
@@ -15,6 +16,11 @@ export default function BoardPage() {
 }
 
 async function BoardData() {
-  const [tasks, members, day] = await Promise.all([getTasks(), getMembers(), getDayContext()]);
-  return <Board tasks={tasks} members={members} day={day} />;
+  const [viewer, tasks, members, day] = await Promise.all([
+    requireUser(),
+    getTasks(),
+    getMembers(),
+    getDayContext(),
+  ]);
+  return <Board viewer={viewer} tasks={tasks} members={members} day={day} />;
 }

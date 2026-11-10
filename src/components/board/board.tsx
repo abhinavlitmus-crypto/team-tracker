@@ -13,12 +13,12 @@ import type { Priority, TaskStatus } from "@prisma/client";
 import { moveTask } from "@/actions/tasks";
 import { PRIORITIES, PRIORITY_LABEL, STATUSES, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
 import { deadlineState } from "@/lib/dates";
-import type { DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDialog } from "../dialog";
 import { buttonClass, inputClass } from "../modal";
 import { TaskCard } from "../task-card";
-import { TaskModal } from "../task-modal";
+import { canUpdateStatus, TaskModal } from "../task-modal";
 
 type Move = {
   taskId: string;
@@ -65,20 +65,25 @@ function useIsClient() {
 type AssigneeFilter = "ALL" | "UNASSIGNED" | string;
 
 export function Board({
+  viewer,
   tasks,
   members,
   day,
 }: {
+  viewer: CurrentUser;
   tasks: TaskDTO[];
   members: MemberDTO[];
   day: DayContext;
 }) {
+  const isAdmin = viewer.access === "ADMIN";
+  // Members start on their own tasks; admins see the whole team.
+  const defaultAssignee: AssigneeFilter = isAdmin ? "ALL" : viewer.id;
   const isClient = useIsClient();
   const [optimisticTasks, addMove] = useOptimistic(tasks, applyMove);
   const [, startTransition] = useTransition();
   const dialog = useDialog();
 
-  const [assignee, setAssignee] = useState<AssigneeFilter>("ALL");
+  const [assignee, setAssignee] = useState<AssigneeFilter>(defaultAssignee);
   const [priority, setPriority] = useState<Priority | "ALL">("ALL");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [query, setQuery] = useState("");
@@ -87,7 +92,7 @@ export function Board({
     { mode: "create"; status: TaskStatus } | { mode: "edit"; task: TaskDTO } | null
   >(null);
 
-  const filtersActive = assignee !== "ALL" || priority !== "ALL" || overdueOnly || query !== "";
+  const filtersActive = assignee !== defaultAssignee || priority !== "ALL" || overdueOnly || query !== "";
 
   const columns = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -139,7 +144,7 @@ export function Board({
   }
 
   function clearFilters() {
-    setAssignee("ALL");
+    setAssignee(defaultAssignee);
     setPriority("ALL");
     setOverdueOnly(false);
     setQuery("");
@@ -169,7 +174,7 @@ export function Board({
           <option value="UNASSIGNED">Unassigned</option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name}
+              {m.id === viewer.id ? `${m.name} (you)` : m.name}
             </option>
           ))}
         </select>
@@ -217,15 +222,17 @@ export function Board({
             <X className="h-3.5 w-3.5" /> Clear
           </button>
         )}
-        <div className="ml-auto">
-          <button
-            type="button"
-            onClick={() => setModal({ mode: "create", status: "TODO" })}
-            className={buttonClass.primary}
-          >
-            <Plus className="h-4 w-4" /> New task
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="ml-auto">
+            <button
+              type="button"
+              onClick={() => setModal({ mode: "create", status: "TODO" })}
+              className={buttonClass.primary}
+            >
+              <Plus className="h-4 w-4" /> New task
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Columns */}
@@ -247,14 +254,16 @@ export function Board({
                       {columns[status].length}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setModal({ mode: "create", status })}
-                    className="rounded p-0.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700"
-                    aria-label={`Add task to ${STATUS_LABEL[status]}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setModal({ mode: "create", status })}
+                      className="rounded p-0.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700"
+                      aria-label={`Add task to ${STATUS_LABEL[status]}`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  )}
                 </header>
                 <Droppable droppableId={status}>
                   {(provided, snapshot) => (
@@ -267,7 +276,12 @@ export function Board({
                       )}
                     >
                       {columns[status].map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                        <Draggable
+                          key={task.id}
+                          draggableId={task.id}
+                          index={index}
+                          isDragDisabled={!canUpdateStatus(viewer, task)}
+                        >
                           {(drag, dragSnapshot) => (
                             <div
                               ref={drag.innerRef}
@@ -301,6 +315,7 @@ export function Board({
       {modal && (
         <TaskModal
           key={modal.mode === "edit" ? modal.task.id : `new-${modal.status}`}
+          viewer={viewer}
           members={members}
           task={modal.mode === "edit" ? modal.task : undefined}
           defaultStatus={modal.mode === "create" ? modal.status : undefined}

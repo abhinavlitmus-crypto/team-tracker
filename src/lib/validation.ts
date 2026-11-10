@@ -31,16 +31,55 @@ export const taskSchema = z.object({
     .transform((v) => (v === "" ? null : v)),
 });
 
+const STATUS = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]);
+
+const email = z.string().trim().toLowerCase().pipe(z.email("Enter a valid email"));
+const name = z.string().trim().min(1, "Name is required").max(100, "Name is too long");
+
+/** New passwords. The upper bound keeps hashing cheap for oversized input. */
+export const newPassword = z
+  .string()
+  .min(8, "Use at least 8 characters")
+  .max(200, "Keep it under 200 characters");
+
 export const memberSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
-  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email")),
+  name,
+  email,
   role: z.enum(["FRONTEND", "BACKEND", "QA", "DESIGNER", "PM"]),
+  access: z.enum(["ADMIN", "MEMBER"]),
   avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a color"),
+  /** Required when adding a member; blank on edit keeps the current password. */
+  password: z.union([z.literal(""), newPassword]),
 });
+
+export const loginSchema = z.object({
+  email,
+  password: z.string().min(1, "Enter your password").max(200),
+});
+
+export const setupSchema = z
+  .object({
+    setupKey: z.string().min(1, "Enter the setup key"),
+    name,
+    email,
+    password: newPassword,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Passwords don't match" });
+
+export const changePasswordSchema = z
+  .object({
+    current: z.string().min(1, "Enter your current password").max(200),
+    password: newPassword,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Passwords don't match" });
+
+export const statusSchema = z.object({ taskId: z.string().min(1), status: STATUS });
 
 export const moveSchema = z.object({
   taskId: z.string().min(1),
-  status: z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]),
+  status: STATUS,
   /** The visible task the moved card now sits directly above, if any. */
   beforeTaskId: z.string().nullable(),
   /** The visible task the moved card now sits directly below, if any. */
