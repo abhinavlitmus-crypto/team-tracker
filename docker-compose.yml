@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: team-tracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tracker
+      # Pulled from .env — fails fast if unset so a weak default can't slip in.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: team_tracker
+    ports:
+      # Bind to loopback only: the database is never exposed on the network.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - team-tracker-pgdata:/var/lib/postgresql/data
+
+volumes:
+  team-tracker-pgdata:
