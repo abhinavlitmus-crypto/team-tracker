@@ -4,7 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  /// Non-pooled connection used by `prisma migrate`. Same as DATABASE_URL locally.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
