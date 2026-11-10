@@ -1,10 +1,22 @@
-import type { Priority, Role, TaskStatus } from "@prisma/client";
+import type { Access, Priority, Role, TaskStatus } from "@prisma/client";
 
 export type MemberDTO = {
   id: string;
   name: string;
-  email: string;
+  /** Only filled in for admins, and for the viewer's own entry. */
+  email: string | null;
   role: Role;
+  avatarColor: string;
+  access: Access;
+  /** True once the member has a password and can sign in. */
+  hasLogin: boolean;
+};
+
+/** The signed-in member, as passed to client components. */
+export type CurrentUser = {
+  id: string;
+  name: string;
+  access: Access;
   avatarColor: string;
 };
 

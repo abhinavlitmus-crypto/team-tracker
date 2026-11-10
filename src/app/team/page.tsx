@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { AlertTriangle, Mail, UserX } from "lucide-react";
+import { AlertTriangle, KeyRound, Mail, ShieldCheck, UserX } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { DueBadge } from "@/components/badges";
 import { PageHeader } from "@/components/page-header";
-import { AddMemberButton, DeleteMemberButton, EditTaskTrigger } from "@/components/triggers";
+import { AddMemberButton, DeleteMemberButton, EditMemberButton, EditTaskTrigger } from "@/components/triggers";
+import { requireUser } from "@/lib/auth";
 import { ROLE_LABEL, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
 import { getDayContext, getMembers, getTasks } from "@/lib/data";
 import { deadlineState } from "@/lib/dates";
-import type { DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Team" };
@@ -19,13 +20,22 @@ export default function TeamPage() {
       <PageHeader
         title="Team"
         description="Who is working on what, and who needs help."
-        actions={<AddMemberButton />}
+        actions={
+          <Suspense fallback={null}>
+            <AdminActions />
+          </Suspense>
+        }
       />
       <Suspense fallback={<GridSkeleton />}>
         <TeamData />
       </Suspense>
     </>
   );
+}
+
+async function AdminActions() {
+  const viewer = await requireUser();
+  return viewer.access === "ADMIN" ? <AddMemberButton /> : null;
 }
 
 function byDueDate(a: TaskDTO, b: TaskDTO) {
@@ -36,7 +46,12 @@ function byDueDate(a: TaskDTO, b: TaskDTO) {
 }
 
 async function TeamData() {
-  const [tasks, members, day] = await Promise.all([getTasks(), getMembers(), getDayContext()]);
+  const [viewer, tasks, members, day] = await Promise.all([
+    requireUser(),
+    getTasks(),
+    getMembers(),
+    getDayContext(),
+  ]);
   const isOverdue = (t: TaskDTO) =>
     t.status !== "DONE" && deadlineState(t.dueDate, day.today, day.weekEnd) === "overdue";
 
@@ -47,7 +62,9 @@ async function TeamData() {
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
         <UserX className="h-8 w-8 text-zinc-300" />
         <p className="text-sm font-medium text-zinc-700">No team members yet</p>
-        <p className="text-sm text-zinc-500">Add your first member to start assigning tasks.</p>
+        <p className="text-sm text-zinc-500">
+          {viewer.access === "ADMIN" ? "Add your first member to start assigning tasks." : "Ask an admin to add the team."}
+        </p>
       </div>
     );
   }
@@ -63,6 +80,7 @@ async function TeamData() {
           return (
             <MemberCard
               key={m.id}
+              viewer={viewer}
               member={m}
               members={members}
               active={active}
@@ -84,6 +102,7 @@ async function TeamData() {
 }
 
 function MemberCard({
+  viewer,
   member,
   members,
   active,
@@ -91,6 +110,7 @@ function MemberCard({
   doneCount,
   day,
 }: {
+  viewer: CurrentUser;
   member: MemberDTO;
   members: MemberDTO[];
   active: TaskDTO[];
@@ -98,6 +118,7 @@ function MemberCard({
   doneCount: number;
   day: DayContext;
 }) {
+  const isAdmin = viewer.access === "ADMIN";
   return (
     <article
       className={cn(
@@ -113,15 +134,37 @@ function MemberCard({
             <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600">
               {ROLE_LABEL[member.role]}
             </span>
+            {member.access === "ADMIN" && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700">
+                <ShieldCheck className="h-3 w-3" /> Admin
+              </span>
+            )}
+            {isAdmin && !member.hasLogin && (
+              <span
+                className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700"
+                title="Set a password so they can sign in"
+              >
+                <KeyRound className="h-3 w-3" /> No login
+              </span>
+            )}
           </div>
-          <a
-            href={`mailto:${member.email}`}
-            className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-zinc-500 hover:text-indigo-600"
-          >
-            <Mail className="h-3 w-3" /> {member.email}
-          </a>
+          {member.email && (
+            <a
+              href={`mailto:${member.email}`}
+              className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-zinc-500 hover:text-indigo-600"
+            >
+              <Mail className="h-3 w-3" /> {member.email}
+            </a>
+          )}
         </div>
-        <DeleteMemberButton member={member} taskCount={active.length + doneCount} />
+        {isAdmin && (
+          <div className="flex">
+            <EditMemberButton member={member} isSelf={member.id === viewer.id} />
+            {member.id !== viewer.id && (
+              <DeleteMemberButton member={member} taskCount={active.length + doneCount} />
+            )}
+          </div>
+        )}
       </div>
 
       <dl className="grid grid-cols-3 border-y border-zinc-100 text-center">
@@ -144,6 +187,7 @@ function MemberCard({
           return (
             <li key={t.id}>
               <EditTaskTrigger
+                viewer={viewer}
                 task={t}
                 members={members}
                 className={cn(

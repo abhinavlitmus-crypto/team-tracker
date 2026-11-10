@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { DialogProvider } from "@/components/dialog";
-import { Sidebar } from "@/components/sidebar";
+import { Suspense } from "react";
+import { Sidebar, SidebarSkeleton } from "@/components/sidebar";
+import { getSessionUser } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -17,10 +19,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans md:h-screen md:flex-row md:overflow-hidden">
         <DialogProvider>
-          <Sidebar />
+          <Suspense fallback={<SidebarSkeleton />}>
+            <SidebarData />
+          </Suspense>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col md:overflow-y-auto">{children}</main>
         </DialogProvider>
       </body>
     </html>
   );
+}
+
+/** Reads the session behind Suspense so the rest of the page isn't held up by it. */
+async function SidebarData() {
+  return <Sidebar user={await getSessionUser()} />;
 }

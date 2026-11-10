@@ -9,6 +9,7 @@ import { dayKeyToDate } from "@/lib/dates";
 import {
   flattenErrors,
   moveSchema,
+  statusSchema,
   taskSchema,
   type ActionState,
 } from "@/lib/validation";
@@ -29,8 +30,11 @@ async function nextPosition(tx: Prisma.TransactionClient, status: TaskStatus) {
   return (last._max.position ?? -1) + 1;
 }
 
+const NOT_YOURS = "You can only update tasks assigned to you.";
+
+/** Creates or edits a task, including who it's assigned to. Admins only. */
 export async function saveTask(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const denied = await guard("saveTask");
+  const { denied } = await guard("saveTask", { admin: true });
   if (denied) return denied;
 
   const parsed = taskSchema.safeParse({
@@ -102,7 +106,7 @@ export async function saveTask(_prev: ActionState, formData: FormData): Promise<
 }
 
 export async function deleteTask(id: string): Promise<ActionState> {
-  const denied = await guard("deleteTask");
+  const { denied } = await guard("deleteTask", { admin: true });
   if (denied) return denied;
 
   try {
@@ -117,12 +121,51 @@ export async function deleteTask(id: string): Promise<ActionState> {
 }
 
 /**
- * Moves a card on the board. The client sends the visible neighbours around the
+ * Changes only a task's status. Admins can update any task; members only the
+ * tasks assigned to them.
+ */
+export async function updateTaskStatus(input: unknown): Promise<ActionState> {
+  const { user, denied } = await guard("updateTaskStatus");
+  if (denied) return denied;
+
+  const parsed = statusSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid status." };
+  const { taskId, status } = parsed.data;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({ where: { id: taskId } });
+      if (!task) throw new UserError("This task was deleted.");
+      if (user.access !== "ADMIN" && task.assigneeId !== user.id) throw new UserError(NOT_YOURS);
+      if (task.status === status) return;
+
+      await tx.task.update({
+        where: { id: taskId },
+        data: {
+          status,
+          position: await nextPosition(tx, status),
+          completedAt: status === "DONE" ? new Date() : null,
+        },
+      });
+    });
+  } catch (err) {
+    refreshAll();
+    if (err instanceof UserError) return { ok: false, message: err.message };
+    console.error(err);
+    return { ok: false, message: "Could not update the status." };
+  }
+
+  refreshAll();
+  return { ok: true };
+}
+
+/**
+ * Moves a card on the board. Members can only move tasks assigned to them. The client sends the visible neighbours around the
  * drop point (filters may hide some cards), and the server places the card
  * relative to them in the full column, then renumbers that column.
  */
 export async function moveTask(input: unknown): Promise<ActionState> {
-  const denied = await guard("moveTask");
+  const { user, denied } = await guard("moveTask");
   if (denied) return denied;
 
   const parsed = moveSchema.safeParse(input);
@@ -133,6 +176,7 @@ export async function moveTask(input: unknown): Promise<ActionState> {
     await prisma.$transaction(async (tx) => {
       const task = await tx.task.findUnique({ where: { id: taskId } });
       if (!task) throw new UserError("This task was deleted.");
+      if (user.access !== "ADMIN" && task.assigneeId !== user.id) throw new UserError(NOT_YOURS);
 
       const column = await tx.task.findMany({
         where: { status, NOT: { id: taskId } },

@@ -1,4 +1,4 @@
-import type { Priority, Role, TaskStatus } from "@prisma/client";
+import type { Access, Priority, Role, TaskStatus } from "@prisma/client";
 
 export const STATUSES: TaskStatus[] = ["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 export const PRIORITIES: Priority[] = ["URGENT", "HIGH", "MEDIUM", "LOW"];
@@ -40,6 +40,16 @@ export const ROLE_LABEL: Record<Role, string> = {
   QA: "QA",
   DESIGNER: "Designer",
   PM: "PM",
+};
+
+export const ACCESS_LABEL: Record<Access, string> = {
+  ADMIN: "Admin",
+  MEMBER: "Member",
+};
+
+export const ACCESS_HINT: Record<Access, string> = {
+  ADMIN: "Can create, assign and delete tasks, and manage the team.",
+  MEMBER: "Can view the board and update the status of their own tasks.",
 };
 
 export const AVATAR_COLORS = [

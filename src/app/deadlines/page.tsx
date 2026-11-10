@@ -7,9 +7,10 @@ import { PriorityBadge } from "@/components/badges";
 import { PageHeader } from "@/components/page-header";
 import { EditTaskTrigger } from "@/components/triggers";
 import { PRIORITIES, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
+import { requireUser } from "@/lib/auth";
 import { getDayContext, getMembers, getTasks } from "@/lib/data";
 import { deadlineState, formatDayKey } from "@/lib/dates";
-import type { DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Deadlines" };
@@ -65,7 +66,12 @@ const GROUPS = [
 ] as const;
 
 async function DeadlinesData() {
-  const [tasks, members, day] = await Promise.all([getTasks(), getMembers(), getDayContext()]);
+  const [viewer, tasks, members, day] = await Promise.all([
+    requireUser(),
+    getTasks(),
+    getMembers(),
+    getDayContext(),
+  ]);
   const open = tasks.filter((t) => t.status !== "DONE");
   const withDue = open
     .filter((t): t is TaskDTO & { dueDate: string } => t.dueDate !== null)
@@ -97,7 +103,7 @@ async function DeadlinesData() {
               <ul className="divide-y divide-black/5 border-t border-black/5">
                 {items.map((t) => (
                   <li key={t.id}>
-                    <DeadlineRow task={t} members={members} day={day} />
+                    <DeadlineRow viewer={viewer} task={t} members={members} day={day} />
                   </li>
                 ))}
               </ul>
@@ -116,10 +122,12 @@ async function DeadlinesData() {
 }
 
 function DeadlineRow({
+  viewer,
   task,
   members,
   day,
 }: {
+  viewer: CurrentUser;
   task: TaskDTO & { dueDate: string };
   members: MemberDTO[];
   day: DayContext;
@@ -136,6 +144,7 @@ function DeadlineRow({
 
   return (
     <EditTaskTrigger
+      viewer={viewer}
       task={task}
       members={members}
       className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-black/[0.03]"

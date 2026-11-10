@@ -1,24 +1,153 @@
 "use client";
 
-import { startTransition, useActionState, useTransition, type FormEvent } from "react";
-import { Trash2 } from "lucide-react";
+import { startTransition, useActionState, useState, useTransition, type FormEvent } from "react";
+import { Lock, Trash2 } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
-import { deleteTask, saveTask } from "@/actions/tasks";
+import { deleteTask, saveTask, updateTaskStatus } from "@/actions/tasks";
 import { PRIORITIES, PRIORITY_LABEL, STATUSES, STATUS_LABEL } from "@/lib/constants";
-import type { MemberDTO, TaskDTO } from "@/lib/types";
+import { formatDayKey } from "@/lib/dates";
+import type { CurrentUser, MemberDTO, TaskDTO } from "@/lib/types";
 import type { ActionState } from "@/lib/validation";
+import { Avatar } from "./avatar";
+import { PriorityBadge } from "./badges";
 import { useDialog } from "./dialog";
 import { buttonClass, Field, inputClass, Modal } from "./modal";
 
+/** True when the viewer may change this task's status (admins, or the assignee). */
+export function canUpdateStatus(viewer: CurrentUser, task: Pick<TaskDTO, "assigneeId">) {
+  return viewer.access === "ADMIN" || task.assigneeId === viewer.id;
+}
+
+/**
+ * Admins get the full edit form. Everyone else sees the task read-only, with a
+ * status picker when the task is assigned to them.
+ */
 export function TaskModal({
+  viewer,
   members,
   task,
   defaultStatus = "TODO",
   onClose,
 }: {
+  viewer: CurrentUser;
   members: MemberDTO[];
   task?: TaskDTO;
   defaultStatus?: TaskStatus;
+  onClose: () => void;
+}) {
+  if (viewer.access !== "ADMIN") {
+    return task ? <TaskView viewer={viewer} task={task} onClose={onClose} /> : null;
+  }
+  return <TaskForm members={members} task={task} defaultStatus={defaultStatus} onClose={onClose} />;
+}
+
+function TaskView({ viewer, task, onClose }: { viewer: CurrentUser; task: TaskDTO; onClose: () => void }) {
+  const [status, setStatus] = useState(task.status);
+  const [saving, startSave] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const editable = canUpdateStatus(viewer, task);
+
+  function onSave(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startSave(async () => {
+      const res = await updateTaskStatus({ taskId: task.id, status });
+      if (res.ok) startTransition(onClose);
+      else setError(res.message ?? "Could not update the status.");
+    });
+  }
+
+  return (
+    <Modal title={task.key} onClose={onClose}>
+      <form onSubmit={onSave} className="space-y-4 p-5">
+        <div>
+          <h3 className="wrap-break-word text-base font-semibold text-zinc-900">{task.title}</h3>
+          {task.description ? (
+            <p className="mt-1.5 whitespace-pre-wrap wrap-break-word text-sm text-zinc-600">{task.description}</p>
+          ) : (
+            <p className="mt-1.5 text-sm text-zinc-400">No description.</p>
+          )}
+        </div>
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-zinc-50 p-3 text-sm">
+          <div>
+            <dt className="text-xs text-zinc-500">Assignee</dt>
+            <dd className="mt-0.5 flex items-center gap-1.5 text-zinc-800">
+              {task.assignee ? (
+                <>
+                  <Avatar name={task.assignee.name} color={task.assignee.avatarColor} size="sm" />
+                  {task.assignee.id === viewer.id ? "You" : task.assignee.name}
+                </>
+              ) : (
+                "Unassigned"
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Priority</dt>
+            <dd className="mt-0.5">
+              <PriorityBadge priority={task.priority} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Due date</dt>
+            <dd className="mt-0.5 text-zinc-800">{task.dueDate ? formatDayKey(task.dueDate, "EEE, MMM d, yyyy") : "None"}</dd>
+          </div>
+          {!editable && (
+            <div>
+              <dt className="text-xs text-zinc-500">Status</dt>
+              <dd className="mt-0.5 text-zinc-800">{STATUS_LABEL[task.status]}</dd>
+            </div>
+          )}
+        </dl>
+
+        {editable ? (
+          <Field label="Status">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as TaskStatus)}
+              autoFocus
+              className={inputClass}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <Lock className="h-3.5 w-3.5" /> Only the assignee or an admin can change this task.
+          </p>
+        )}
+
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4">
+          <button type="button" onClick={onClose} className={buttonClass.secondary}>
+            {editable ? "Cancel" : "Close"}
+          </button>
+          {editable && (
+            <button type="submit" disabled={saving || status === task.status} className={buttonClass.primary}>
+              {saving ? "Saving…" : "Update status"}
+            </button>
+          )}
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function TaskForm({
+  members,
+  task,
+  defaultStatus,
+  onClose,
+}: {
+  members: MemberDTO[];
+  task?: TaskDTO;
+  defaultStatus: TaskStatus;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
