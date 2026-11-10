@@ -8,9 +8,9 @@ import { PageHeader } from "@/components/page-header";
 import { EditTaskTrigger } from "@/components/triggers";
 import { PRIORITIES, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
 import { requireUser } from "@/lib/auth";
-import { getDayContext, getMembers, getTasks } from "@/lib/data";
+import { getDayContext, getMembers, getProjects, getTasks } from "@/lib/data";
 import { deadlineState, formatDayKey } from "@/lib/dates";
-import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Deadlines" };
@@ -66,10 +66,11 @@ const GROUPS = [
 ] as const;
 
 async function DeadlinesData() {
-  const [viewer, tasks, members, day] = await Promise.all([
+  const [viewer, tasks, members, projects, day] = await Promise.all([
     requireUser(),
     getTasks(),
     getMembers(),
+    getProjects(),
     getDayContext(),
   ]);
   const open = tasks.filter((t) => t.status !== "DONE");
@@ -103,7 +104,7 @@ async function DeadlinesData() {
               <ul className="divide-y divide-black/5 border-t border-black/5">
                 {items.map((t) => (
                   <li key={t.id}>
-                    <DeadlineRow viewer={viewer} task={t} members={members} day={day} />
+                    <DeadlineRow viewer={viewer} task={t} members={members} projects={projects} day={day} />
                   </li>
                 ))}
               </ul>
@@ -125,11 +126,13 @@ function DeadlineRow({
   viewer,
   task,
   members,
+  projects,
   day,
 }: {
   viewer: CurrentUser;
   task: TaskDTO & { dueDate: string };
   members: MemberDTO[];
+  projects: ProjectDTO[];
   day: DayContext;
 }) {
   const diff = differenceInCalendarDays(parseISO(task.dueDate), parseISO(day.today));
@@ -147,6 +150,7 @@ function DeadlineRow({
       viewer={viewer}
       task={task}
       members={members}
+      projects={projects}
       className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-black/[0.03]"
     >
       <div className="w-20 shrink-0">
@@ -159,6 +163,7 @@ function DeadlineRow({
         <p className="truncate text-sm font-medium text-zinc-900">{task.title}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <span className="font-mono">{task.key}</span>
+          <span className="truncate">{task.project.name}</span>
           <span className="inline-flex items-center gap-1">
             <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[task.status])} />
             {STATUS_LABEL[task.status]}

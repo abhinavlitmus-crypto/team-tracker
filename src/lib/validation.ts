@@ -20,6 +20,7 @@ export const taskSchema = z.object({
   description: optionalText,
   status: z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+  projectId: z.string().trim().min(1, "Pick a project"),
   assigneeId: z
     .string()
     .trim()
@@ -28,6 +29,20 @@ export const taskSchema = z.object({
     .string()
     .trim()
     .refine((v) => v === "" || isDayKey(v), "Use a valid date")
+    .transform((v) => (v === "" ? null : v)),
+});
+
+export const projectSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
+  key: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z][A-Z0-9]{1,9}$/, "2–10 letters or digits, starting with a letter"),
+  description: z
+    .string()
+    .trim()
+    .max(1000, "Keep it under 1000 characters")
     .transform((v) => (v === "" ? null : v)),
 });
 
@@ -45,7 +60,7 @@ export const newPassword = z
 export const memberSchema = z.object({
   name,
   email,
-  role: z.enum(["FRONTEND", "BACKEND", "QA", "DESIGNER", "PM"]),
+  role: z.enum(["FRONTEND", "BACKEND", "FULLSTACK", "QA", "DESIGNER", "PM"]),
   access: z.enum(["ADMIN", "MEMBER"]),
   avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a color"),
   /** Required when adding a member; blank on edit keeps the current password. */

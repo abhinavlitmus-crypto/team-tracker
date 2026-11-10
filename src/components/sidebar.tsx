@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, KanbanSquare, KeyRound, ListChecks, LogOut, Users } from "lucide-react";
+import { CalendarClock, FolderKanban, KanbanSquare, KeyRound, ListChecks, LogOut, Users } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { ACCESS_LABEL } from "@/lib/constants";
 import type { CurrentUser } from "@/lib/types";
@@ -12,6 +12,7 @@ import { ChangePasswordModal } from "./auth-forms";
 import { Avatar } from "./avatar";
 
 const NAV = [
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/my-tasks", label: "My tasks", icon: ListChecks },
   { href: "/", label: "Board", icon: KanbanSquare },
   { href: "/deadlines", label: "Deadlines", icon: CalendarClock },
@@ -33,7 +34,7 @@ export function Sidebar({ user }: { user: CurrentUser | null }) {
         </span>
         <div className="leading-tight">
           <p className="text-sm font-semibold text-zinc-900">Team Tracker</p>
-          <p className="text-[11px] text-zinc-500">Core Platform</p>
+          <p className="text-[11px] text-zinc-500">Projects & tasks</p>
         </div>
       </div>
       <nav className="flex gap-1 px-2 pb-2 md:flex-col md:pb-0">

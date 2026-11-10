@@ -6,7 +6,7 @@ import type { TaskStatus } from "@prisma/client";
 import { updateTaskStatus } from "@/actions/tasks";
 import { STATUSES, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
 import { deadlineState } from "@/lib/dates";
-import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DueBadge, PriorityBadge } from "./badges";
 import { useDialog } from "./dialog";
@@ -27,11 +27,13 @@ export function MyTasks({
   viewer,
   tasks,
   members,
+  projects,
   day,
 }: {
   viewer: CurrentUser;
   tasks: TaskDTO[];
   members: MemberDTO[];
+  projects: ProjectDTO[];
   day: DayContext;
 }) {
   const [optimistic, setStatus] = useOptimistic(
@@ -141,6 +143,7 @@ export function MyTasks({
           viewer={viewer}
           task={opened}
           members={members}
+          projects={projects}
           onClose={() => setOpened(null)}
         />
       )}
