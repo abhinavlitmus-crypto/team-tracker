@@ -49,7 +49,8 @@ npm run dev                 # http://localhost:3000 — you'll land on /login
 
 | Var | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Postgres connection string. |
+| `DATABASE_URL` | Postgres connection string (on Neon, the pooled one). |
+| `DIRECT_URL` | Non-pooled connection for migrations. Same as `DATABASE_URL` locally. |
 | `POSTGRES_PASSWORD` | Read by `docker-compose.yml`; must match the password in `DATABASE_URL`. |
 | `AUTH_SECRET` | Signs session cookies. 32+ bytes — `openssl rand -hex 32`. |
 | `AUTH_PASSWORD` | Setup key for creating the first admin account. Not used after that. |
@@ -75,6 +76,17 @@ The seed dates are relative to the day you run it, so it always produces 2 overd
 | `npm run db:migrate` | `prisma migrate dev` |
 | `npm run db:seed` | Reset and seed sample data |
 | `npm run db:studio` | Prisma Studio |
+| `npm run db:deploy` | `prisma migrate deploy` (apply migrations, no prompts) |
+| `npm run db:smoke` | Create a test table, insert a row, read it back |
+
+## Deploying to Vercel + Neon
+
+1. Create a Neon project (Vercel Storage tab, or `neon init`).
+2. In Vercel → Settings → Environment Variables, set `DATABASE_URL` (Neon pooled string), `DIRECT_URL` (Neon direct string), a fresh `AUTH_SECRET` and `AUTH_PASSWORD`.
+3. Deploy. [vercel.json](vercel.json) runs `prisma migrate deploy` before `next build`, so tables are created automatically.
+4. Open `/login` and create the admin account with `AUTH_PASSWORD`, then you can remove `AUTH_PASSWORD`.
+
+Note: the login rate limiter is in-memory, so on Vercel each server instance counts separately.
 
 ## Code layout
 
