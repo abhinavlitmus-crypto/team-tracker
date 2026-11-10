@@ -20,6 +20,17 @@ export type CurrentUser = {
   avatarColor: string;
 };
 
+export type ProjectDTO = {
+  id: string;
+  name: string;
+  /** Short uppercase code used in task IDs, e.g. "WEB" in WEB-12. */
+  key: string;
+  description: string | null;
+  taskCount: number;
+  openCount: number;
+  doneCount: number;
+};
+
 export type TaskDTO = {
   id: string;
   key: string;
@@ -31,6 +42,8 @@ export type TaskDTO = {
   /** Calendar day, "yyyy-MM-dd". */
   dueDate: string | null;
   completedAt: string | null;
+  projectId: string;
+  project: Pick<ProjectDTO, "id" | "name" | "key">;
   assigneeId: string | null;
   assignee: Pick<MemberDTO, "id" | "name" | "avatarColor"> | null;
 };

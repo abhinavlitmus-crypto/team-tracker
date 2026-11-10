@@ -13,7 +13,7 @@ import type { Priority, TaskStatus } from "@prisma/client";
 import { moveTask } from "@/actions/tasks";
 import { PRIORITIES, PRIORITY_LABEL, STATUSES, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
 import { deadlineState } from "@/lib/dates";
-import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDialog } from "../dialog";
 import { buttonClass, inputClass } from "../modal";
@@ -68,11 +68,16 @@ export function Board({
   viewer,
   tasks,
   members,
+  projects,
+  initialProject = "ALL",
   day,
 }: {
   viewer: CurrentUser;
   tasks: TaskDTO[];
   members: MemberDTO[];
+  projects: ProjectDTO[];
+  /** Project id to filter by when the board opens (from ?project=), or "ALL". */
+  initialProject?: string;
   day: DayContext;
 }) {
   const isAdmin = viewer.access === "ADMIN";
@@ -84,6 +89,9 @@ export function Board({
   const dialog = useDialog();
 
   const [assignee, setAssignee] = useState<AssigneeFilter>(defaultAssignee);
+  const [project, setProject] = useState<string>(
+    projects.some((p) => p.id === initialProject) ? initialProject : "ALL",
+  );
   const [priority, setPriority] = useState<Priority | "ALL">("ALL");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [query, setQuery] = useState("");
@@ -92,11 +100,13 @@ export function Board({
     { mode: "create"; status: TaskStatus } | { mode: "edit"; task: TaskDTO } | null
   >(null);
 
-  const filtersActive = assignee !== defaultAssignee || priority !== "ALL" || overdueOnly || query !== "";
+  const filtersActive =
+    project !== "ALL" || assignee !== defaultAssignee || priority !== "ALL" || overdueOnly || query !== "";
 
   const columns = useMemo(() => {
     const q = query.trim().toLowerCase();
     const visible = optimisticTasks.filter((t) => {
+      if (project !== "ALL" && t.projectId !== project) return false;
       if (assignee === "UNASSIGNED" && t.assigneeId) return false;
       if (assignee !== "ALL" && assignee !== "UNASSIGNED" && t.assigneeId !== assignee) return false;
       if (priority !== "ALL" && t.priority !== priority) return false;
@@ -112,7 +122,7 @@ export function Board({
     for (const t of visible) byStatus[t.status].push(t);
     for (const s of STATUSES) byStatus[s].sort((a, b) => a.position - b.position);
     return byStatus;
-  }, [optimisticTasks, assignee, priority, overdueOnly, query, day]);
+  }, [optimisticTasks, project, assignee, priority, overdueOnly, query, day]);
 
   const overdueCount = useMemo(
     () =>
@@ -144,6 +154,7 @@ export function Board({
   }
 
   function clearFilters() {
+    setProject("ALL");
     setAssignee(defaultAssignee);
     setPriority("ALL");
     setOverdueOnly(false);
@@ -164,6 +175,19 @@ export function Board({
             className={cn(inputClass, "pl-8")}
           />
         </div>
+        <select
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          aria-label="Filter by project"
+          className={cn(inputClass, "w-auto")}
+        >
+          <option value="ALL">All projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
         <select
           value={assignee}
           onChange={(e) => setAssignee(e.target.value)}
@@ -317,8 +341,10 @@ export function Board({
           key={modal.mode === "edit" ? modal.task.id : `new-${modal.status}`}
           viewer={viewer}
           members={members}
+          projects={projects}
           task={modal.mode === "edit" ? modal.task : undefined}
           defaultStatus={modal.mode === "create" ? modal.status : undefined}
+          defaultProjectId={project !== "ALL" ? project : undefined}
           onClose={() => setModal(null)}
         />
       )}

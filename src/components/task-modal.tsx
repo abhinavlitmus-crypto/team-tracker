@@ -1,12 +1,13 @@
 "use client";
 
 import { startTransition, useActionState, useState, useTransition, type FormEvent } from "react";
-import { Lock, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { FolderOpen, Lock, Trash2 } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
 import { deleteTask, saveTask, updateTaskStatus } from "@/actions/tasks";
 import { PRIORITIES, PRIORITY_LABEL, STATUSES, STATUS_LABEL } from "@/lib/constants";
 import { formatDayKey } from "@/lib/dates";
-import type { CurrentUser, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 import type { ActionState } from "@/lib/validation";
 import { Avatar } from "./avatar";
 import { PriorityBadge } from "./badges";
@@ -25,20 +26,34 @@ export function canUpdateStatus(viewer: CurrentUser, task: Pick<TaskDTO, "assign
 export function TaskModal({
   viewer,
   members,
+  projects,
   task,
   defaultStatus = "TODO",
+  defaultProjectId,
   onClose,
 }: {
   viewer: CurrentUser;
   members: MemberDTO[];
+  projects: ProjectDTO[];
   task?: TaskDTO;
   defaultStatus?: TaskStatus;
+  /** Pre-selects a project for new tasks (e.g. the board's project filter). */
+  defaultProjectId?: string;
   onClose: () => void;
 }) {
   if (viewer.access !== "ADMIN") {
     return task ? <TaskView viewer={viewer} task={task} onClose={onClose} /> : null;
   }
-  return <TaskForm members={members} task={task} defaultStatus={defaultStatus} onClose={onClose} />;
+  return (
+    <TaskForm
+      members={members}
+      projects={projects}
+      task={task}
+      defaultStatus={defaultStatus}
+      defaultProjectId={defaultProjectId}
+      onClose={onClose}
+    />
+  );
 }
 
 function TaskView({ viewer, task, onClose }: { viewer: CurrentUser; task: TaskDTO; onClose: () => void }) {
@@ -70,6 +85,13 @@ function TaskView({ viewer, task, onClose }: { viewer: CurrentUser; task: TaskDT
         </div>
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-zinc-50 p-3 text-sm">
+          <div className="col-span-2">
+            <dt className="text-xs text-zinc-500">Project</dt>
+            <dd className="mt-0.5 flex items-center gap-1.5 text-zinc-800">
+              <FolderOpen className="h-3.5 w-3.5 text-zinc-400" />
+              {task.project.name}
+            </dd>
+          </div>
           <div>
             <dt className="text-xs text-zinc-500">Assignee</dt>
             <dd className="mt-0.5 flex items-center gap-1.5 text-zinc-800">
@@ -141,13 +163,17 @@ function TaskView({ viewer, task, onClose }: { viewer: CurrentUser; task: TaskDT
 
 function TaskForm({
   members,
+  projects,
   task,
   defaultStatus,
+  defaultProjectId,
   onClose,
 }: {
   members: MemberDTO[];
+  projects: ProjectDTO[];
   task?: TaskDTO;
   defaultStatus: TaskStatus;
+  defaultProjectId?: string;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -187,11 +213,47 @@ function TaskForm({
 
   const errors = state.errors ?? {};
   const busy = pending || deleting;
+  const noProjects = projects.length === 0;
+  const initialProjectId =
+    task?.projectId ??
+    (projects.some((p) => p.id === defaultProjectId) ? defaultProjectId : projects[0]?.id) ??
+    "";
 
   return (
     <Modal title={task ? `Edit ${task.key}` : "New task"} onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-4 p-5" noValidate>
         {task && <input type="hidden" name="id" value={task.id} />}
+
+        {noProjects && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Tasks belong to a project.{" "}
+            <Link href="/projects" onClick={onClose} className="font-medium underline">
+              Create a project
+            </Link>{" "}
+            first.
+          </p>
+        )}
+
+        <Field label="Project" error={errors.projectId}>
+          <select
+            name="projectId"
+            defaultValue={initialProjectId}
+            disabled={noProjects}
+            className={inputClass}
+          >
+            {noProjects && <option value="">No projects yet</option>}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.key})
+              </option>
+            ))}
+          </select>
+          {task && (
+            <span className="mt-1 block text-xs text-zinc-500">
+              Moving a task to another project changes its ID prefix.
+            </span>
+          )}
+        </Field>
 
         <Field label="Title" error={errors.title}>
           <input
@@ -274,7 +336,7 @@ function TaskForm({
             <button type="button" onClick={onClose} className={buttonClass.secondary}>
               Cancel
             </button>
-            <button type="submit" disabled={busy} className={buttonClass.primary}>
+            <button type="submit" disabled={busy || noProjects} className={buttonClass.primary}>
               {pending ? "Saving…" : task ? "Save changes" : "Create task"}
             </button>
           </div>

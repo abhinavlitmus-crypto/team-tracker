@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import type { Prisma, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { guard } from "@/lib/auth";
-import { DEFAULT_PROJECT } from "@/lib/data";
 import { dayKeyToDate } from "@/lib/dates";
 import {
   flattenErrors,
@@ -16,13 +15,6 @@ import {
 
 function refreshAll() {
   revalidatePath("/", "layout");
-}
-
-async function ensureProjectId(tx: Prisma.TransactionClient) {
-  const existing = await tx.project.findFirst({ orderBy: { createdAt: "asc" } });
-  if (existing) return existing.id;
-  const created = await tx.project.create({ data: DEFAULT_PROJECT });
-  return created.id;
 }
 
 async function nextPosition(tx: Prisma.TransactionClient, status: TaskStatus) {
@@ -42,6 +34,7 @@ export async function saveTask(_prev: ActionState, formData: FormData): Promise<
     description: formData.get("description") ?? "",
     status: formData.get("status"),
     priority: formData.get("priority"),
+    projectId: formData.get("projectId") ?? "",
     assigneeId: formData.get("assigneeId") ?? "",
     dueDate: formData.get("dueDate") ?? "",
   });
@@ -50,10 +43,13 @@ export async function saveTask(_prev: ActionState, formData: FormData): Promise<
   }
 
   const id = String(formData.get("id") ?? "").trim() || null;
-  const { title, description, status, priority, assigneeId, dueDate } = parsed.data;
+  const { title, description, status, priority, projectId, assigneeId, dueDate } = parsed.data;
 
   try {
     await prisma.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true } });
+      if (!project) throw new UserError("That project no longer exists. Pick another one.");
+
       if (assigneeId) {
         const member = await tx.member.findUnique({ where: { id: assigneeId } });
         if (!member) throw new UserError("That team member no longer exists.");
@@ -64,6 +60,7 @@ export async function saveTask(_prev: ActionState, formData: FormData): Promise<
         description,
         status,
         priority,
+        projectId,
         assigneeId,
         dueDate: dueDate ? dayKeyToDate(dueDate) : null,
       };
@@ -72,7 +69,6 @@ export async function saveTask(_prev: ActionState, formData: FormData): Promise<
         await tx.task.create({
           data: {
             ...base,
-            projectId: await ensureProjectId(tx),
             position: await nextPosition(tx, status),
             completedAt: status === "DONE" ? new Date() : null,
           },

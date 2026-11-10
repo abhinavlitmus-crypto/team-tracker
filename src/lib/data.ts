@@ -3,13 +3,7 @@ import { connection } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { endOfWeekKey, toDayKey, todayKey } from "@/lib/dates";
-import type { DayContext, MemberDTO, TaskDTO } from "@/lib/types";
-
-export const DEFAULT_PROJECT = {
-  key: "CORE",
-  name: "Core Platform",
-  description: "Main product platform work.",
-};
+import type { DayContext, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 
 export async function getDayContext(): Promise<DayContext> {
   await connection();
@@ -41,7 +35,7 @@ export async function getTasks(): Promise<TaskDTO[]> {
   const tasks = await prisma.task.findMany({
     orderBy: [{ status: "asc" }, { position: "asc" }, { taskNumber: "asc" }],
     include: {
-      project: { select: { key: true } },
+      project: { select: { id: true, name: true, key: true } },
       assignee: { select: { id: true, name: true, avatarColor: true } },
     },
   });
@@ -55,14 +49,33 @@ export async function getTasks(): Promise<TaskDTO[]> {
     position: t.position,
     dueDate: toDayKey(t.dueDate),
     completedAt: t.completedAt?.toISOString() ?? null,
+    projectId: t.projectId,
+    project: t.project,
     assigneeId: t.assigneeId,
     assignee: t.assignee,
   }));
 }
 
-export async function getDefaultProject() {
+/** All projects, oldest first, with how many tasks each has. */
+export async function getProjects(): Promise<ProjectDTO[]> {
   await connection();
-  return prisma.project.findFirst({ orderBy: { createdAt: "asc" } });
+  const [projects, counts] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, key: true, description: true },
+    }),
+    prisma.task.groupBy({ by: ["projectId", "status"], _count: { _all: true } }),
+  ]);
+  return projects.map((p) => {
+    let taskCount = 0;
+    let doneCount = 0;
+    for (const c of counts) {
+      if (c.projectId !== p.id) continue;
+      taskCount += c._count._all;
+      if (c.status === "DONE") doneCount += c._count._all;
+    }
+    return { ...p, taskCount, doneCount, openCount: taskCount - doneCount };
+  });
 }
 
 /** True until the first account with a password exists. */

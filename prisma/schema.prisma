@@ -12,6 +12,7 @@ datasource db {
 enum Role {
   FRONTEND
   BACKEND
+  FULLSTACK
   QA
   DESIGNER
   PM

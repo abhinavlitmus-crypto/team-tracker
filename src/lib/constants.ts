@@ -2,7 +2,7 @@ import type { Access, Priority, Role, TaskStatus } from "@prisma/client";
 
 export const STATUSES: TaskStatus[] = ["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 export const PRIORITIES: Priority[] = ["URGENT", "HIGH", "MEDIUM", "LOW"];
-export const ROLES: Role[] = ["FRONTEND", "BACKEND", "QA", "DESIGNER", "PM"];
+export const ROLES: Role[] = ["FRONTEND", "BACKEND", "FULLSTACK", "QA", "DESIGNER", "PM"];
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   BACKLOG: "Backlog",
@@ -37,6 +37,7 @@ export const PRIORITY_STYLE: Record<Priority, string> = {
 export const ROLE_LABEL: Record<Role, string> = {
   FRONTEND: "Frontend",
   BACKEND: "Backend",
+  FULLSTACK: "Full Stack Developer",
   QA: "QA",
   DESIGNER: "Designer",
   PM: "PM",

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { MyTasks } from "@/components/my-tasks";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
-import { getDayContext, getMembers, getTasks } from "@/lib/data";
+import { getDayContext, getMembers, getProjects, getTasks } from "@/lib/data";
 
 export const metadata: Metadata = { title: "My tasks" };
 
@@ -19,14 +19,15 @@ export default function MyTasksPage() {
 }
 
 async function MyTasksData() {
-  const [viewer, tasks, members, day] = await Promise.all([
+  const [viewer, tasks, members, projects, day] = await Promise.all([
     requireUser(),
     getTasks(),
     getMembers(),
+    getProjects(),
     getDayContext(),
   ]);
   const mine = tasks.filter((t) => t.assigneeId === viewer.id);
-  return <MyTasks viewer={viewer} tasks={mine} members={members} day={day} />;
+  return <MyTasks viewer={viewer} tasks={mine} members={members} projects={projects} day={day} />;
 }
 
 function ListSkeleton() {

@@ -7,9 +7,9 @@ import { PageHeader } from "@/components/page-header";
 import { AddMemberButton, DeleteMemberButton, EditMemberButton, EditTaskTrigger } from "@/components/triggers";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABEL, STATUS_DOT, STATUS_LABEL } from "@/lib/constants";
-import { getDayContext, getMembers, getTasks } from "@/lib/data";
+import { getDayContext, getMembers, getProjects, getTasks } from "@/lib/data";
 import { deadlineState } from "@/lib/dates";
-import type { CurrentUser, DayContext, MemberDTO, TaskDTO } from "@/lib/types";
+import type { CurrentUser, DayContext, MemberDTO, ProjectDTO, TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Team" };
@@ -46,10 +46,11 @@ function byDueDate(a: TaskDTO, b: TaskDTO) {
 }
 
 async function TeamData() {
-  const [viewer, tasks, members, day] = await Promise.all([
+  const [viewer, tasks, members, projects, day] = await Promise.all([
     requireUser(),
     getTasks(),
     getMembers(),
+    getProjects(),
     getDayContext(),
   ]);
   const isOverdue = (t: TaskDTO) =>
@@ -83,6 +84,7 @@ async function TeamData() {
               viewer={viewer}
               member={m}
               members={members}
+              projects={projects}
               active={active}
               overdueCount={overdue.length}
               doneCount={done}
@@ -105,6 +107,7 @@ function MemberCard({
   viewer,
   member,
   members,
+  projects,
   active,
   overdueCount,
   doneCount,
@@ -113,6 +116,7 @@ function MemberCard({
   viewer: CurrentUser;
   member: MemberDTO;
   members: MemberDTO[];
+  projects: ProjectDTO[];
   active: TaskDTO[];
   overdueCount: number;
   doneCount: number;
@@ -190,6 +194,7 @@ function MemberCard({
                 viewer={viewer}
                 task={t}
                 members={members}
+                projects={projects}
                 className={cn(
                   "flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-zinc-50",
                   state === "overdue" && "bg-red-50/40",
